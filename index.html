@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CodeTrainer Quiz</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>CodeTrainer</h1>
+    <form id="setup-form">
+      <div class="form-group">
+        <label for="topic">Topic:</label>
+        <input type="text" id="topic" name="topic" placeholder="e.g. Python Loops" required  autocomplete="off" />
+      </div>
+      <div class="form-group">
+        <label for="difficulty">Difficulty:</label>
+        <select id="difficulty" name="difficulty">
+          <option value="Beginner">Beginner</option>
+          <option value="Intermediate">Intermediate</option>
+          <option value="Advanced">Advanced</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="num-questions">Number of Questions:</label>
+        <input type="number" id="num-questions" name="num-questions" min="1" max="20" value="10" required autocomplete="off" />
+      </div>
+      <div class="form-group">
+        <label for="api-key">OpenAI API Key:</label>
+        <input type="password" id="api-key" name="api-key" placeholder="sk-..." required autocomplete="off" />
+      </div>
+      <button type="submit">Start Quiz</button>
+    </form>
+    <div id="home-area" class="hidden">
+      <h2>Saved Quizzes</h2>
+      <ul id="saved-quizzes-list"></ul>
+    </div>
+    <div id="quiz-area" class="hidden">
+      <div id="question-meta"></div>
+      <div id="question-prompt"></div>
+      <div id="code-container" class="code-ide"><!-- code will be rendered here --></div>
+      <div id="options"></div>
+      <div id="feedback" class="hidden"></div>
+    </div>
+    <button id="next-btn" class="ctrlbtn hidden">Next</button>
+    <div id="results" class="hidden"></div>
+      <span id="nextlvl-text" class="hidden">Score at least 50% to continue</span>
+    <button id="nextlvl-btn" class="ctrlbtn hidden" disabled>Next Level</button>
+    <button id="restart-btn" class="ctrlbtn hidden">Restart</button>
+    <button id="home-btn" class="ctrlbtn hidden">Home</button>
+  </div>
+  
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="loading-overlay hidden">
+    <div class="loading-content">
+      <div class="progress-container">
+        <h2>Generating Quiz...</h2>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <div class="progress-text hidden" id="progress-text">0%</div>
+      </div>
+    </div>
+  </div>
+  
+  <script src="app.js"></script>
+</body>
+</html>
