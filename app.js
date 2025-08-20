@@ -628,12 +628,6 @@ async function fetchQuiz(topic, difficulty, numQuestions, providedApiKey = null)
     startQuizBtn.className = 'start-quiz-btn';
     loadingOverlay.appendChild(startQuizBtn);
     
-    // Create unicode progress bar
-    const unicodeProgressBar = document.createElement('div');
-    unicodeProgressBar.className = 'unicode-progress';
-    unicodeProgressBar.textContent = '▒▒▒▒▒▒▒▒▒▒';
-    loadingOverlay.appendChild(unicodeProgressBar);
-    
     let quizStarted = false;
     let allQuestionsLoaded = false;
     
@@ -644,23 +638,6 @@ async function fetchQuiz(topic, difficulty, numQuestions, providedApiKey = null)
       questions,
       isLoading: true,
       totalQuestions: numQuestions
-    };
-    
-    // Function to update unicode progress bar
-    const updateUnicodeProgress = (progress) => {
-      const totalBlocks = 10;
-      const filledBlocks = Math.round((progress / 100) * totalBlocks);
-      const emptyBlocks = totalBlocks - filledBlocks;
-      
-      let progressBar = '';
-      for (let i = 0; i < filledBlocks; i++) {
-        progressBar += '█';
-      }
-      for (let i = 0; i < emptyBlocks; i++) {
-        progressBar += '▒';
-      }
-      
-      unicodeProgressBar.textContent = progressBar;
     };
     
     // Function to start the quiz
@@ -750,7 +727,6 @@ async function fetchQuiz(topic, difficulty, numQuestions, providedApiKey = null)
         const progress = ((i + 1) / numQuestions) * 100;
         if (progressFill) progressFill.style.width = `${progress}%`;
         if (progressText) progressText.textContent = `${Math.round(progress)}%`;
-        updateUnicodeProgress(progress);
         
         // Show start button after first question is loaded
         if (i === 0 && !quizStarted) {

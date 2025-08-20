@@ -656,18 +656,6 @@ button:disabled {
   display: block;
 }
 
-/* Unicode Progress Bar */
-.unicode-progress {
-  font-family: 'Courier New', monospace;
-  font-size: 18px;
-  color: #10b981;
-  text-align: center;
-  margin-top: 15px;
-  letter-spacing: 2px;
-  text-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
-  transition: all 0.3s ease;
-}
-
 /* Question Loading State */
 .question-loading {
   text-align: center;
@@ -677,13 +665,28 @@ button:disabled {
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
   border-radius: 12px;
   border: 2px dashed #cbd5e1;
+  position: relative;
 }
 
 .question-loading::before {
   font-style: normal;
-  content: '↺';
+  content: '⠋';
   display: block;
   font-size: 2rem;
   margin-bottom: 1rem;
-  animation: spin 2s linear infinite;
+  animation: dotSpinner 1s linear infinite;
+}
+
+@keyframes dotSpinner {
+  0% { content: '⠋'; }
+  10% { content: '⠙'; }
+  20% { content: '⠹'; }
+  30% { content: '⠸'; }
+  40% { content: '⠼'; }
+  50% { content: '⠴'; }
+  60% { content: '⠦'; }
+  70% { content: '⠧'; }
+  80% { content: '⠇'; }
+  90% { content: '⠏'; }
+  100% { content: '⠋'; }
 }
