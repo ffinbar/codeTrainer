@@ -29,7 +29,7 @@ h1 {
   color: #2d3748;
   font-size: 2.5rem;
   font-weight: 700;
-  margin: 0 0 2rem 0;
+  margin: 0;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -95,11 +95,9 @@ form input:focus, form select:focus {
   outline: none;
   border-color: #667eea;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-  background: #fff;
 }
 form input:hover, form select:hover {
   border-color: #d1d5db;
-  background: #fff;
 }
 form select {
   appearance: none;
@@ -137,6 +135,76 @@ form button:disabled {
   transform: none;
   box-shadow: none;
 }
+
+/* Topic Banner Styles */
+#topic-banner-container {
+  height: 45px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.topic-banner {
+  position: absolute;
+  display: flex;
+  box-sizing: content-box;
+  gap: 12px;
+  align-items: center;
+  width: max-content;
+  animation: marquee 40s linear infinite;
+  padding: 8px 0;
+  padding-right: 12px;
+}
+
+#topic-banner-duplicate {
+  animation: marquee2 40s linear infinite;
+}
+
+.topic-button {
+  margin: 0;
+  width: min-content;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 16px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+.topic-button:hover {
+  transform: translateY(-1px) scale(1.05);
+  box-shadow: none;
+}
+
+.topic-button:active {
+  transform: translateY(0) scale(1.02);
+}
+
+@keyframes marquee {
+  0% {
+    transform: translate(0, 0);
+  }
+  100% {
+    transform: translate(-100%, 0);
+  }
+}
+
+@keyframes marquee2 {
+  0% {
+    transform: translate(100%, 0);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
 /* #quiz-area {
 
 } */

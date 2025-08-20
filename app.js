@@ -107,13 +107,6 @@ setupForm.addEventListener('submit', async (e) => {
   
   try {
     quiz = await fetchQuiz(topic, difficulty, numQuestions);
-    quiz.id = Date.now();
-    quiz.date = new Date().toLocaleDateString();
-    quiz.attempts = 0;
-    quiz.highScore = 0;
-    quiz.maxStreak = 0;
-    
-    await saveQuiz(quiz);
     
     setupForm.classList.add('hidden');
     homeArea.classList.add('hidden');
@@ -143,14 +136,13 @@ function showSavedQuizzes() {
     homeArea.classList.remove('hidden');
     savedQuizzesList.innerHTML = '';
     
-    // Sort quizzes by creation date (newest first)
-    quizzes.sort((a, b) => new Date(b.date || b.created) - new Date(a.date || a.created));
+    // Sort quizzes by creation date (newest first) - use only date field
+    quizzes.sort((a, b) => new Date(b.date) - new Date(a.date));
     
     quizzes.forEach(qz => {
       const li = document.createElement('li');
-    // Format date as "19 Aug 2025" - use date field if available, fallback to created
-    const dateField = qz.date || qz.created;
-    const dateObj = new Date(dateField);
+    // Format date as "19 Aug 2025" - use only date field  
+    const dateObj = new Date(qz.date);
     const dateStr = dateObj.toLocaleDateString(undefined, {
       day: '2-digit',
       month: 'short',
@@ -318,17 +310,19 @@ async function generateFollowupQuiz() {
     }
     
     // Save the follow-up quiz
-    const created = new Date().toISOString();
     await saveQuiz({
       topic: followupQuiz.topic,
       difficulty: followupQuiz.difficulty,
       questions: followupQuiz.questions,
-      created
+      date: new Date().toLocaleDateString(), // Use consistent date field
+      attempts: 0,
+      highScore: 0,
+      maxStreak: 0
     });
     
     // Get the saved quiz ID
     const quizzes = await getQuizzes();
-    const saved = quizzes.find(qz => qz.created === created && qz.topic === followupQuiz.topic && qz.difficulty === followupQuiz.difficulty);
+    const saved = quizzes.find(qz => qz.topic === followupQuiz.topic && qz.difficulty === followupQuiz.difficulty);
     if (saved) {
       followupQuiz.id = saved.id;
     }
@@ -606,8 +600,59 @@ function showResults() {
   }
 }
 
-// --- On load, show saved quizzes ---
-window.addEventListener('DOMContentLoaded', showSavedQuizzes);
+// --- On load, show saved quizzes and initialize topic banner ---
+window.addEventListener('DOMContentLoaded', () => {
+  showSavedQuizzes();
+  initializeTopicBanner();
+});
+
+// Initialize the scrolling topic banner
+async function initializeTopicBanner() {
+  try {
+    // Fetch the topics from examples.txt
+    const response = await fetch('./examples.json');
+    const topics = await response.json();
+    
+    const topicInput = document.getElementById('topic');
+    
+    // Pick 10 random topics
+    const shuffledTopics = [...topics].sort(() => Math.random() - 0.5);
+    const selectedTopics = shuffledTopics.slice(0, 10);
+    
+    // Create topic buttons for original content
+    const originalContent = document.getElementById('topic-banner');
+    const duplicateContent = document.getElementById('topic-banner-duplicate');
+    
+    // Function to create topic buttons
+    const createButtons = (container) => {
+      selectedTopics.forEach(topic => {
+        const button = document.createElement('button');
+        button.className = 'topic-button';
+        button.type = 'button';
+        button.textContent = topic;
+        button.onclick = () => {
+          topicInput.value = topic;
+          topicInput.focus();
+          // Add a subtle highlight effect
+          button.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+          setTimeout(() => {
+            button.style.background = '';
+          }, 300);
+        };
+        container.appendChild(button);
+      });
+    };
+    
+    // Create buttons for both original and duplicate content
+    createButtons(originalContent);
+    createButtons(duplicateContent);
+    
+  } catch (error) {
+    console.error('Failed to load topic examples:', error);
+    // Fallback: hide the banner if examples can't be loaded
+    document.querySelector('.topic-banner-container').style.display = 'none';
+  }
+}
 
 async function fetchQuiz(topic, difficulty, numQuestions, providedApiKey = null) {
   try {
