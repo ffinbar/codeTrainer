@@ -257,6 +257,7 @@ restartBtn.addEventListener('click', () => {
   score = 0;
   streak = 0;
   maxStreak = 0;
+  resetState(false);
   resultsDiv.classList.add('hidden');
   restartBtn.classList.add('hidden');
   nextLvlBtn.classList.add('hidden');
@@ -366,8 +367,8 @@ function setFeedback(message, isError = false) {
 }
 
 // --- Core Functions ---
-function resetState() {
-    quiz = null;
+function resetState(full = true) {
+    quiz = full ? null : quiz;
     current = 0;
     score = 0;
     streak = 0;
@@ -378,6 +379,7 @@ function resetState() {
     restartBtn.classList.add('hidden');
     homeBtn.classList.add('hidden');
     h1.classList.remove('hidden');
+    nextLvlText.classList.add('hidden');
 }
 
 function showLoading(msg) {
