@@ -44,17 +44,6 @@ async function getQuizzes() {
   });
 }
 
-async function getQuizzes() {
-  const db = await openDB();
-  return await new Promise((resolve, reject) => {
-    const tx = db.transaction('quizzes', 'readonly');
-    const store = tx.objectStore('quizzes');
-    const req = store.getAll();
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = e => reject(e);
-  });
-}
-
 // Removed stats table and related functions
 // app.js - CodeTrainer Quiz core logic
 
@@ -141,8 +130,21 @@ function showSavedQuizzes() {
     
     quizzes.forEach(qz => {
       const li = document.createElement('li');
-    // Format date as "19 Aug 2025" - use only date field  
-    const dateObj = new Date(qz.date);
+    // Format date as "19 Aug 2025" - handle both ISO strings and legacy formats
+    let dateObj;
+    try {
+      // Try parsing as ISO string first (new format)
+      dateObj = new Date(qz.date);
+      // If the date is invalid, it will be NaN
+      if (isNaN(dateObj.getTime())) {
+        throw new Error('Invalid date');
+      }
+    } catch (e) {
+      // Fallback: use current date if parsing fails
+      console.warn('Invalid date format in saved quiz:', qz.date);
+      dateObj = new Date();
+    }
+    
     const dateStr = dateObj.toLocaleDateString(undefined, {
       day: '2-digit',
       month: 'short',
@@ -302,46 +304,14 @@ async function generateFollowupQuiz() {
     if (progressFill) progressFill.style.width = '0%';
     if (progressText) progressText.textContent = '0%';
     
-    // Generate follow-up quiz
-    const followupQuiz = await fetchFollowupQuiz(quiz.topic, nextDifficulty, quiz.questions.length, quiz);
-    
-    if (!followupQuiz || !followupQuiz.questions || !followupQuiz.questions.length) {
-      throw new Error('No follow-up quiz data.');
-    }
-    
-    // Save the follow-up quiz
-    await saveQuiz({
-      topic: followupQuiz.topic,
-      difficulty: followupQuiz.difficulty,
-      questions: followupQuiz.questions,
-      date: new Date().toLocaleDateString(), // Use consistent date field
-      attempts: 0,
-      highScore: 0,
-      maxStreak: 0
-    });
-    
-    // Get the saved quiz ID
-    const quizzes = await getQuizzes();
-    const saved = quizzes.find(qz => qz.topic === followupQuiz.topic && qz.difficulty === followupQuiz.difficulty);
-    if (saved) {
-      followupQuiz.id = saved.id;
-    }
-    
-    // Start the follow-up quiz
-    quiz = followupQuiz;
+    // Reset state for new quiz
     current = 0;
     score = 0;
     streak = 0;
     maxStreak = 0;
     
-    // Hide loading and results, show quiz
-    loadingOverlay.classList.add('hidden');
-    resultsDiv.classList.add('hidden');
-    restartBtn.classList.add('hidden');
-    nextLvlBtn.classList.add('hidden');
-    homeBtn.classList.add('hidden');
-    quizArea.classList.remove('hidden');
-    renderQuestion();
+    // Generate follow-up quiz - this now handles all the UI state management
+    await fetchFollowupQuiz(quiz.topic, nextDifficulty, quiz.questions.length, quiz);
     
   } catch (err) {
     // Hide loading and show error
@@ -654,7 +624,7 @@ async function initializeTopicBanner() {
   }
 }
 
-async function fetchQuiz(topic, difficulty, numQuestions, providedApiKey = null) {
+async function fetchQuiz(topic, difficulty, numQuestions, previousQuiz = null) {
   try {
     const questions = [];
     const progressFill = document.querySelector('#progress-fill');
@@ -692,7 +662,7 @@ async function fetchQuiz(topic, difficulty, numQuestions, providedApiKey = null)
         quizStarted = true;
         quiz = quizData;
         quiz.id = Date.now();
-        quiz.date = new Date().toLocaleDateString();
+        quiz.date = new Date().toISOString();
         quiz.attempts = 0;
         quiz.highScore = 0;
         quiz.maxStreak = 0;
@@ -701,11 +671,24 @@ async function fetchQuiz(topic, difficulty, numQuestions, providedApiKey = null)
         saveQuiz(quiz);
         
         // Hide loading overlay and start quiz
-        document.getElementById('setup-form').classList.add('hidden');
-        document.getElementById('home-area').classList.add('hidden');
+        const setupForm = document.getElementById('setup-form');
+        const homeArea = document.getElementById('home-area');
+        const resultsDiv = document.getElementById('results');
+        const restartBtn = document.getElementById('restart-btn');
+        const nextLvlBtn = document.getElementById('nextlvl-btn');
+        const homeBtn = document.getElementById('home-btn');
+        const quizArea = document.getElementById('quiz-area');
+        const h1 = document.querySelector('h1');
+        
+        if (setupForm) setupForm.classList.add('hidden');
+        if (homeArea) homeArea.classList.add('hidden');
+        if (resultsDiv) resultsDiv.classList.add('hidden');
+        if (restartBtn) restartBtn.classList.add('hidden');
+        if (nextLvlBtn) nextLvlBtn.classList.add('hidden');
+        if (homeBtn) homeBtn.classList.add('hidden');
+        if (h1) h1.classList.add('hidden');
         loadingOverlay.classList.add('hidden');
-        document.getElementById('quiz-area').classList.remove('hidden');
-        document.querySelector('h1').classList.add('hidden');
+        quizArea.classList.remove('hidden');
         
         renderQuestion();
       }
@@ -713,11 +696,29 @@ async function fetchQuiz(topic, difficulty, numQuestions, providedApiKey = null)
     
     startQuizBtn.onclick = startQuiz;
     
+    // Determine if this is a follow-up quiz for messaging
+    const isFollowup = previousQuiz !== null;
+    const questionTypeText = isFollowup ? 'follow-up question' : 'question';
+    
     // Generate questions one by one
     for (let i = 0; i < numQuestions; i++) {
       try {
         if (loadingText) {
-          loadingText.textContent = `Generating question ${i + 1} of ${numQuestions}...`;
+          loadingText.textContent = `Generating ${questionTypeText} ${i + 1} of ${numQuestions}...`;
+        }
+        
+        // Build request body
+        const requestBody = {
+          topic,
+          difficulty,
+          questionIndex: i,
+          totalQuestions: numQuestions,
+          previousQuestions: questions
+        };
+        
+        // Add previousQuiz for follow-up context if provided
+        if (previousQuiz) {
+          requestBody.previousQuiz = previousQuiz;
         }
         
         const response = await fetch('/.netlify/functions/responses', {
@@ -725,13 +726,7 @@ async function fetchQuiz(topic, difficulty, numQuestions, providedApiKey = null)
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            topic,
-            difficulty,
-            questionIndex: i,
-            totalQuestions: numQuestions,
-            previousQuestions: questions // Send previously generated questions for context
-          })
+          body: JSON.stringify(requestBody)
         });
 
         if (!response.ok) {
@@ -752,7 +747,7 @@ async function fetchQuiz(topic, difficulty, numQuestions, providedApiKey = null)
         const questionResponse = await response.json();
         
         if (!questionResponse.question) {
-          throw new Error('Failed to generate question. Please try again.');
+          throw new Error(`Failed to generate ${questionTypeText}. Please try again.`);
         }
 
         // Validate question has required fields
@@ -818,91 +813,51 @@ async function fetchQuiz(topic, difficulty, numQuestions, providedApiKey = null)
 
     return quizData;
   } catch (error) {
-    console.error('Quiz generation error:', error);
+    const errorType = previousQuiz ? 'Follow-up quiz' : 'Quiz';
+    console.error(`${errorType} generation error:`, error);
     throw error;
   }
 }
 
-// Generate follow-up quiz with context from previous quiz
-async function fetchFollowupQuiz(topic, difficulty, numQuestions, previousQuiz, providedApiKey = null) {
+// Generate a follow-up quiz with increased difficulty
+async function generateFollowupQuiz() {
+  const nextLvlBtn = document.getElementById('nextlvl-btn');
+  
   try {
-    const questions = [];
+    // Determine next difficulty level
+    const difficultyLevels = ['Beginner', 'Intermediate', 'Advanced'];
+    const currentDifficultyIndex = difficultyLevels.indexOf(quiz.difficulty);
+    const nextDifficulty = currentDifficultyIndex < difficultyLevels.length - 1 
+      ? difficultyLevels[currentDifficultyIndex + 1] 
+      : quiz.difficulty; // Stay at Advanced if already there
+    
+    // Show loading state
+    nextLvlBtn.disabled = true;
+    nextLvlBtn.textContent = 'Generating...';
+    loadingOverlay.classList.remove('hidden');
+    
+    // Reset progress bar
     const progressFill = document.querySelector('#progress-fill');
     const progressText = document.querySelector('#progress-text');
-    const loadingText = document.querySelector('#loading-overlay p');
+    if (progressFill) progressFill.style.width = '0%';
+    if (progressText) progressText.textContent = '0%';
     
-    // Generate questions one by one
-    for (let i = 0; i < numQuestions; i++) {
-      if (loadingText) {
-        loadingText.textContent = `Generating follow-up question ${i + 1} of ${numQuestions}...`;
-      }
-      
-      // Update progress bar
-      const progress = ((i + 1) / numQuestions) * 100;
-      if (progressFill) progressFill.style.width = `${progress}%`;
-      if (progressText) progressText.textContent = `${Math.round(progress)}%`;
-      
-      const response = await fetch('/.netlify/functions/responses', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          topic,
-          difficulty,
-          questionIndex: i,
-          totalQuestions: numQuestions,
-          previousQuestions: questions, // Send previously generated questions for context
-          previousQuiz // Send the previous quiz for follow-up context
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('Netlify function error:', response.status, errorData);
-        
-        if (response.status === 401) {
-          throw new Error('Invalid API key configuration. Please contact support.');
-        } else if (response.status === 429) {
-          throw new Error('Rate limit exceeded. Please try again later.');
-        } else if (response.status === 402) {
-          throw new Error('Service temporarily unavailable. Please try again later.');
-        } else {
-          throw new Error(errorData.error || `Server error: ${response.status}. Please try again.`);
-        }
-      }
-
-      const questionResponse = await response.json();
-      
-      if (!questionResponse.question) {
-        throw new Error('Failed to generate follow-up question. Please try again.');
-      }
-
-      // Validate question has required fields
-      const q = questionResponse.question;
-      if (!q.prompt || !q.code_snippet || !q.options || !Array.isArray(q.options) || q.options.length !== 4) {
-        throw new Error('Invalid question format - must have exactly 4 options');
-      }
-      
-      // Ensure exactly one option is marked as correct
-      const correctOptions = q.options.filter(opt => opt.isCorrect);
-      if (correctOptions.length !== 1) {
-        throw new Error(`Question ${q.id}: Must have exactly one correct option, found ${correctOptions.length}`);
-      }
-
-      questions.push(questionResponse.question);
-    }
-
-    // Create final quiz data structure
-    const quizData = {
-      topic,
-      difficulty,
-      questions
-    };
-
-    return quizData;
-  } catch (error) {
-    console.error('Follow-up quiz generation error:', error);
-    throw error;
+    // Reset state for new quiz
+    current = 0;
+    score = 0;
+    streak = 0;
+    maxStreak = 0;
+    
+    // Generate follow-up quiz using the unified fetchQuiz function
+    await fetchQuiz(quiz.topic, nextDifficulty, quiz.questions.length, quiz);
+    
+  } catch (err) {
+    // Hide loading and show error
+    loadingOverlay.classList.add('hidden');
+    alert('Failed to generate follow-up quiz: ' + err.message);
+  } finally {
+    // Reset button
+    nextLvlBtn.disabled = false;
+    nextLvlBtn.textContent = 'Next Level';
   }
 }
