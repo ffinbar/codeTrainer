@@ -144,12 +144,13 @@ function showSavedQuizzes() {
     savedQuizzesList.innerHTML = '';
     
     // Sort quizzes by creation date (newest first)
-    quizzes.sort((a, b) => new Date(b.created) - new Date(a.created));
+    quizzes.sort((a, b) => new Date(b.date || b.created) - new Date(a.date || a.created));
     
     quizzes.forEach(qz => {
       const li = document.createElement('li');
-    // Format date as "19 Aug 2025"
-    const dateObj = new Date(qz.created);
+    // Format date as "19 Aug 2025" - use date field if available, fallback to created
+    const dateField = qz.date || qz.created;
+    const dateObj = new Date(dateField);
     const dateStr = dateObj.toLocaleDateString(undefined, {
       day: '2-digit',
       month: 'short',
