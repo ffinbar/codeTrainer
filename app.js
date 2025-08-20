@@ -3,6 +3,134 @@ const DB_NAME = 'codeTrainerDB';
 const DB_VERSION = 1;
 let db = null;
 
+// --- Sound System ---
+class SoundManager {
+  constructor() {
+    this.audioContext = null;
+    this.enabled = true;
+    this.initAudioContext();
+  }
+  
+  initAudioContext() {
+    try {
+      this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {
+      console.warn('Web Audio API not supported');
+      this.enabled = false;
+    }
+  }
+  
+  async resumeAudioContext() {
+    if (this.audioContext && this.audioContext.state === 'suspended') {
+      await this.audioContext.resume();
+    }
+  }
+  
+  playClickSound() {
+    if (!this.enabled || !this.audioContext) return;
+    
+    this.resumeAudioContext();
+    
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+    
+    // Much lower, softer frequency range for pleasant pops
+    const baseFreq = 400;
+    const randomVariation = Math.random() * 100 - 50; // ±50Hz variation
+    oscillator.frequency.setValueAtTime(baseFreq + randomVariation, this.audioContext.currentTime);
+    
+    // Gentle attack and smooth decay for a soft "pop"
+    gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.04, this.audioContext.currentTime + 0.02); // Much quieter
+    gainNode.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + 0.15); // Longer decay
+    
+    // Use sine wave for smooth, pleasant sound
+    oscillator.type = 'sine';
+    
+    oscillator.start(this.audioContext.currentTime);
+    oscillator.stop(this.audioContext.currentTime + 0.15);
+  }
+  
+  playSuccessSound() {
+    if (!this.enabled || !this.audioContext) return;
+    
+    this.resumeAudioContext();
+    
+    // Create a pleasant ascending chord progression
+    const frequencies = [300, 375, 450]; // Lower pitched major chord
+    const startTime = this.audioContext.currentTime;
+    
+    frequencies.forEach((freq, index) => {
+      const oscillator = this.audioContext.createOscillator();
+      const gainNode = this.audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(this.audioContext.destination);
+      
+      oscillator.frequency.setValueAtTime(freq, startTime + index * 0.05);
+      oscillator.type = 'sine'; // Smooth sine waves
+      
+      // Gentle volume envelope
+      gainNode.gain.setValueAtTime(0, startTime + index * 0.05);
+      gainNode.gain.linearRampToValueAtTime(0.02, startTime + index * 0.05 + 0.05); // Much quieter
+      gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + index * 0.05 + 0.3);
+      
+      oscillator.start(startTime + index * 0.05);
+      oscillator.stop(startTime + index * 0.05 + 0.3);
+    });
+  }
+  
+  playErrorSound() {
+    if (!this.enabled || !this.audioContext) return;
+    
+    this.resumeAudioContext();
+    
+    // Lower, gentler error tone
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+    
+    oscillator.frequency.setValueAtTime(180, this.audioContext.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(140, this.audioContext.currentTime + 0.3);
+    
+    // Soft volume envelope
+    gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.025, this.audioContext.currentTime + 0.05); // Much quieter
+    gainNode.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + 0.3);
+    
+    oscillator.type = 'sine'; // Smooth sine wave
+    oscillator.start(this.audioContext.currentTime);
+    oscillator.stop(this.audioContext.currentTime + 0.3);
+  }
+}
+
+const soundManager = new SoundManager();
+
+// Helper function to add click sound to buttons
+function addClickSound(element) {
+  if (element && element.addEventListener) {
+    element.addEventListener('click', () => soundManager.playClickSound());
+  }
+}
+
+// Helper function to add click sounds to multiple elements
+function addClickSounds(elements) {
+  if (elements) {
+    if (elements.length !== undefined) {
+      // NodeList or Array
+      elements.forEach(addClickSound);
+    } else {
+      // Single element
+      addClickSound(elements);
+    }
+  }
+}
+
 function openDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -184,6 +312,7 @@ function showSavedQuizzes() {
           behavior: 'smooth'
         });
       };
+      addClickSound(li.querySelector('button'));
       // Delete icon logic
       const deleteIcon = li.querySelector('.delete-icon');
       let confirmDelete = false;
@@ -211,6 +340,7 @@ function showSavedQuizzes() {
           });
         }
       };
+      addClickSound(deleteIcon);
       savedQuizzesList.appendChild(li);
     });
   });
@@ -441,6 +571,7 @@ function renderQuestion(fillAllBlanks = false) {
     const btn = document.createElement('button');
     btn.textContent = opt.option;
     btn.onclick = () => handleAnswer(btn, opt, q, idx);
+    addClickSound(btn);
     optionsDiv.appendChild(btn);
   });
 }
@@ -501,9 +632,11 @@ function handleAnswer(btn, selectedOpt, q, idx) {
     streak++;
     maxStreak = Math.max(maxStreak, streak);
     setFeedback('✅ Correct! ' + q.explanation);
+    soundManager.playSuccessSound();
   } else {
     streak = 0;
     setFeedback('❌ Incorrect. ' + q.explanation);
+    soundManager.playErrorSound();
   }
   nextBtn.disabled = false;
   //scroll to next button
@@ -574,6 +707,16 @@ function showResults() {
 window.addEventListener('DOMContentLoaded', () => {
   showSavedQuizzes();
   initializeTopicBanner();
+  
+  // Add click sounds to all existing buttons
+  addClickSounds([
+    setupForm.querySelector('button[type="submit"]'),
+    nextBtn,
+    restartBtn,
+    homeBtn,
+    nextLvlBtn,
+    document.getElementById('start-quiz-btn')
+  ]);
 });
 
 // Initialize the scrolling topic banner
@@ -609,6 +752,7 @@ async function initializeTopicBanner() {
             button.style.background = '';
           }, 300);
         };
+        addClickSound(button);
         container.appendChild(button);
       });
     };
@@ -629,20 +773,13 @@ async function fetchQuiz(topic, difficulty, numQuestions, previousQuiz = null) {
     const questions = [];
     const progressFill = document.querySelector('#progress-fill');
     const progressText = document.querySelector('#progress-text');
-    const loadingText = document.querySelector('#loading-overlay p');
+    const loadingText = document.querySelector('#loading-text');
     const loadingOverlay = document.getElementById('loading-overlay');
+    const startQuizBtn = document.getElementById('start-quiz-btn');
     
-    // Remove any existing start quiz button
-    const existingBtn = loadingOverlay.querySelector('.start-quiz-btn');
-    if (existingBtn) {
-      existingBtn.remove();
-    }
-    
-    // Create new start quiz button
-    const startQuizBtn = document.createElement('button');
-    startQuizBtn.textContent = 'Start Quiz';
-    startQuizBtn.className = 'start-quiz-btn';
-    loadingOverlay.appendChild(startQuizBtn);
+    // Reset and hide the start quiz button initially
+    startQuizBtn.classList.remove('show');
+    startQuizBtn.disabled = true;
     
     let quizStarted = false;
     let allQuestionsLoaded = false;
@@ -694,6 +831,7 @@ async function fetchQuiz(topic, difficulty, numQuestions, previousQuiz = null) {
       }
     };
     
+    // Set up the start quiz button click handler
     startQuizBtn.onclick = startQuiz;
     
     // Determine if this is a follow-up quiz for messaging
@@ -772,6 +910,7 @@ async function fetchQuiz(topic, difficulty, numQuestions, previousQuiz = null) {
         // Show start button after first question is loaded
         if (i === 0 && !quizStarted) {
           startQuizBtn.classList.add('show');
+          startQuizBtn.disabled = false;
           if (loadingText) {
             loadingText.textContent = `Question 1 ready! Loading remaining questions...`;
           }
