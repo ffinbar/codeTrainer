@@ -536,6 +536,7 @@ button:disabled {
   background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(12px);
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   z-index: 1000;
@@ -655,6 +656,18 @@ button:disabled {
   display: block;
 }
 
+/* Unicode Progress Bar */
+.unicode-progress {
+  font-family: 'Courier New', monospace;
+  font-size: 18px;
+  color: #10b981;
+  text-align: center;
+  margin-top: 15px;
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+  transition: all 0.3s ease;
+}
+
 /* Question Loading State */
 .question-loading {
   text-align: center;
@@ -667,7 +680,8 @@ button:disabled {
 }
 
 .question-loading::before {
-  content: '🔄';
+  font-style: normal;
+  content: '↺';
   display: block;
   font-size: 2rem;
   margin-bottom: 1rem;
