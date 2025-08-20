@@ -581,41 +581,59 @@ window.addEventListener('DOMContentLoaded', showSavedQuizzes);
 
 async function fetchQuiz(topic, difficulty, numQuestions, providedApiKey = null) {
   try {
-    const response = await fetch('/.netlify/functions/responses', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        topic,
-        difficulty,
-        numQuestions
-      })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      console.error('Netlify function error:', response.status, errorData);
-      
-      if (response.status === 401) {
-        throw new Error('Invalid API key configuration. Please contact support.');
-      } else if (response.status === 429) {
-        throw new Error('Rate limit exceeded. Please try again later.');
-      } else if (response.status === 402) {
-        throw new Error('Service temporarily unavailable. Please try again later.');
-      } else {
-        throw new Error(errorData.error || `Server error: ${response.status}. Please try again.`);
-      }
-    }
-
-    const quizData = await response.json();
+    const questions = [];
+    const progressFill = document.querySelector('#progress-fill');
+    const progressText = document.querySelector('#progress-text');
+    const loadingText = document.querySelector('#loading-overlay p');
     
-    if (!quizData || !quizData.questions) {
-      throw new Error('Failed to generate quiz. Please try again.');
-    }
+    // Generate questions one by one
+    for (let i = 0; i < numQuestions; i++) {
+      if (loadingText) {
+        loadingText.textContent = `Generating question ${i + 1} of ${numQuestions}...`;
+      }
+      
+      // Update progress bar
+      const progress = ((i + 1) / numQuestions) * 100;
+      if (progressFill) progressFill.style.width = `${progress}%`;
+      if (progressText) progressText.textContent = `${Math.round(progress)}%`;
+      
+      const response = await fetch('/.netlify/functions/responses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          topic,
+          difficulty,
+          questionIndex: i,
+          totalQuestions: numQuestions,
+          previousQuestions: questions // Send previously generated questions for context
+        })
+      });
 
-    // Validate each question has required fields
-    for (const q of quizData.questions) {
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('Netlify function error:', response.status, errorData);
+        
+        if (response.status === 401) {
+          throw new Error('Invalid API key configuration. Please contact support.');
+        } else if (response.status === 429) {
+          throw new Error('Rate limit exceeded. Please try again later.');
+        } else if (response.status === 402) {
+          throw new Error('Service temporarily unavailable. Please try again later.');
+        } else {
+          throw new Error(errorData.error || `Server error: ${response.status}. Please try again.`);
+        }
+      }
+
+      const questionResponse = await response.json();
+      
+      if (!questionResponse.question) {
+        throw new Error('Failed to generate question. Please try again.');
+      }
+
+      // Validate question has required fields
+      const q = questionResponse.question;
       if (!q.prompt || !q.code_snippet || !q.options || !Array.isArray(q.options) || q.options.length !== 4) {
         throw new Error('Invalid question format - must have exactly 4 options');
       }
@@ -625,7 +643,16 @@ async function fetchQuiz(topic, difficulty, numQuestions, providedApiKey = null)
       if (correctOptions.length !== 1) {
         throw new Error(`Question ${q.id}: Must have exactly one correct option, found ${correctOptions.length}`);
       }
+
+      questions.push(questionResponse.question);
     }
+
+    // Create final quiz data structure
+    const quizData = {
+      topic,
+      difficulty,
+      questions
+    };
 
     return quizData;
   } catch (error) {
@@ -637,42 +664,60 @@ async function fetchQuiz(topic, difficulty, numQuestions, providedApiKey = null)
 // Generate follow-up quiz with context from previous quiz
 async function fetchFollowupQuiz(topic, difficulty, numQuestions, previousQuiz, providedApiKey = null) {
   try {
-    const response = await fetch('/.netlify/functions/responses', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        topic,
-        difficulty,
-        numQuestions,
-        previousQuiz
-      })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      console.error('Netlify function error:', response.status, errorData);
-      
-      if (response.status === 401) {
-        throw new Error('Invalid API key configuration. Please contact support.');
-      } else if (response.status === 429) {
-        throw new Error('Rate limit exceeded. Please try again later.');
-      } else if (response.status === 402) {
-        throw new Error('Service temporarily unavailable. Please try again later.');
-      } else {
-        throw new Error(errorData.error || `Server error: ${response.status}. Please try again.`);
-      }
-    }
-
-    const quizData = await response.json();
+    const questions = [];
+    const progressFill = document.querySelector('#progress-fill');
+    const progressText = document.querySelector('#progress-text');
+    const loadingText = document.querySelector('#loading-overlay p');
     
-    if (!quizData || !quizData.questions) {
-      throw new Error('Failed to generate follow-up quiz. Please try again.');
-    }
+    // Generate questions one by one
+    for (let i = 0; i < numQuestions; i++) {
+      if (loadingText) {
+        loadingText.textContent = `Generating follow-up question ${i + 1} of ${numQuestions}...`;
+      }
+      
+      // Update progress bar
+      const progress = ((i + 1) / numQuestions) * 100;
+      if (progressFill) progressFill.style.width = `${progress}%`;
+      if (progressText) progressText.textContent = `${Math.round(progress)}%`;
+      
+      const response = await fetch('/.netlify/functions/responses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          topic,
+          difficulty,
+          questionIndex: i,
+          totalQuestions: numQuestions,
+          previousQuestions: questions, // Send previously generated questions for context
+          previousQuiz // Send the previous quiz for follow-up context
+        })
+      });
 
-    // Validate each question has required fields
-    for (const q of quizData.questions) {
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('Netlify function error:', response.status, errorData);
+        
+        if (response.status === 401) {
+          throw new Error('Invalid API key configuration. Please contact support.');
+        } else if (response.status === 429) {
+          throw new Error('Rate limit exceeded. Please try again later.');
+        } else if (response.status === 402) {
+          throw new Error('Service temporarily unavailable. Please try again later.');
+        } else {
+          throw new Error(errorData.error || `Server error: ${response.status}. Please try again.`);
+        }
+      }
+
+      const questionResponse = await response.json();
+      
+      if (!questionResponse.question) {
+        throw new Error('Failed to generate follow-up question. Please try again.');
+      }
+
+      // Validate question has required fields
+      const q = questionResponse.question;
       if (!q.prompt || !q.code_snippet || !q.options || !Array.isArray(q.options) || q.options.length !== 4) {
         throw new Error('Invalid question format - must have exactly 4 options');
       }
@@ -682,7 +727,16 @@ async function fetchFollowupQuiz(topic, difficulty, numQuestions, previousQuiz, 
       if (correctOptions.length !== 1) {
         throw new Error(`Question ${q.id}: Must have exactly one correct option, found ${correctOptions.length}`);
       }
+
+      questions.push(questionResponse.question);
     }
+
+    // Create final quiz data structure
+    const quizData = {
+      topic,
+      difficulty,
+      questions
+    };
 
     return quizData;
   } catch (error) {
