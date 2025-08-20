@@ -85,27 +85,37 @@ class SoundManager {
   
   playErrorSound() {
     if (!this.enabled || !this.audioContext) return;
-    
+
     this.resumeAudioContext();
-    
-    // Lower, gentler error tone
-    const oscillator = this.audioContext.createOscillator();
-    const gainNode = this.audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(this.audioContext.destination);
-    
-    oscillator.frequency.setValueAtTime(180, this.audioContext.currentTime);
-    oscillator.frequency.exponentialRampToValueAtTime(140, this.audioContext.currentTime + 0.3);
-    
-    // Soft volume envelope
-    gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.025, this.audioContext.currentTime + 0.05); // Much quieter
-    gainNode.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + 0.3);
-    
-    oscillator.type = 'sine'; // Smooth sine wave
-    oscillator.start(this.audioContext.currentTime);
-    oscillator.stop(this.audioContext.currentTime + 0.3);
+
+    // Two-tone error sound
+    const now = this.audioContext.currentTime;
+
+    // First tone
+    const osc1 = this.audioContext.createOscillator();
+    const gain1 = this.audioContext.createGain();
+    osc1.connect(gain1);
+    gain1.connect(this.audioContext.destination);
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(340, now);
+    gain1.gain.setValueAtTime(0, now);
+    gain1.gain.linearRampToValueAtTime(0.04, now + 0.01);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+    osc1.start(now);
+    osc1.stop(now + 0.13);
+
+    // Second tone: lower, longer, starts just after first
+    const osc2 = this.audioContext.createOscillator();
+    const gain2 = this.audioContext.createGain();
+    osc2.connect(gain2);
+    gain2.connect(this.audioContext.destination);
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(180, now + 0.09);
+    gain2.gain.setValueAtTime(0, now + 0.09);
+    gain2.gain.linearRampToValueAtTime(0.045, now + 0.11);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
+    osc2.start(now + 0.09);
+    osc2.stop(now + 0.36);
   }
 }
 
@@ -746,6 +756,7 @@ async function initializeTopicBanner() {
         button.onclick = () => {
           topicInput.value = topic;
           topicInput.focus();
+
           // Add a subtle highlight effect
           button.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
           setTimeout(() => {
@@ -760,6 +771,39 @@ async function initializeTopicBanner() {
     // Create buttons for both original and duplicate content
     createButtons(originalContent);
     createButtons(duplicateContent);
+    
+    // Safari-specific fix: Force animation restart after DOM is ready
+    setTimeout(() => {
+      const bannerElements = [originalContent, duplicateContent];
+      bannerElements.forEach(element => {
+        if (element) {
+          // Force reflow to restart animations in Safari
+          const animationName = element.style.animationName;
+          element.style.animationName = 'none';
+          element.offsetHeight; // Trigger reflow
+          element.style.animationName = animationName;
+          
+          // Additional Safari-specific restart
+          element.style.webkitAnimationName = 'none';
+          element.offsetHeight; // Trigger reflow
+          element.style.webkitAnimationName = animationName;
+        }
+      });
+    }, 100);
+    
+    // Additional check for iOS/Safari - restart animation if it appears frozen
+    if (/iPad|iPhone|iPod/.test(navigator.userAgent) || /Safari/.test(navigator.userAgent)) {
+      setTimeout(() => {
+        const container = document.querySelector('#topic-banner-container');
+        if (container) {
+          // Force a repaint by toggling hardware acceleration
+          container.style.transform = 'translateZ(0.1px)';
+          setTimeout(() => {
+            container.style.transform = 'translateZ(0)';
+          }, 50);
+        }
+      }, 500);
+    }
     
   } catch (error) {
     console.error('Failed to load topic examples:', error);

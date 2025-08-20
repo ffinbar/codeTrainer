@@ -146,6 +146,13 @@ form button:disabled {
   /* Force hardware acceleration and animation start */
   transform: translateZ(0);
   will-change: transform;
+  /* Safari-specific fixes */
+  -webkit-transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  /* Force repaint to prevent frozen state */
+  -webkit-perspective: 1000px;
+  perspective: 1000px;
 }
 
 .topic-banner {
@@ -161,9 +168,17 @@ form button:disabled {
   /* Force hardware acceleration for smooth animation */
   transform: translateZ(0);
   will-change: transform;
+  /* Safari-specific acceleration */
+  -webkit-transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
   /* Ensure animation starts immediately */
   animation-delay: 0s;
   animation-fill-mode: both;
+  /* Force animation to be recognized by Safari */
+  -webkit-animation: marquee 40s linear infinite;
+  -webkit-animation-delay: 0s;
+  -webkit-animation-fill-mode: both;
 }
 
 #topic-banner-duplicate {
@@ -171,9 +186,17 @@ form button:disabled {
   /* Force hardware acceleration */
   transform: translateZ(0);
   will-change: transform;
+  /* Safari-specific acceleration */
+  -webkit-transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
   /* Ensure animation starts immediately */
   animation-delay: 0s;
   animation-fill-mode: both;
+  /* Force animation to be recognized by Safari */
+  -webkit-animation: marquee2 40s linear infinite;
+  -webkit-animation-delay: 0s;
+  -webkit-animation-fill-mode: both;
 }
 
 .topic-button {
@@ -205,17 +228,44 @@ form button:disabled {
 @keyframes marquee {
   0% {
     transform: translate3d(0, 0, 0);
+    -webkit-transform: translate3d(0, 0, 0);
   }
   100% {
     transform: translate3d(-100%, 0, 0);
+    -webkit-transform: translate3d(-100%, 0, 0);
   }
 }
 
 @keyframes marquee2 {
   0% {
     transform: translate3d(100%, 0, 0);
+    -webkit-transform: translate3d(100%, 0, 0);
   }
   100% {
+    transform: translate3d(0, 0, 0);
+    -webkit-transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Safari-specific keyframes with -webkit- prefix */
+@-webkit-keyframes marquee {
+  0% {
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    -webkit-transform: translate3d(-100%, 0, 0);
+    transform: translate3d(-100%, 0, 0);
+  }
+}
+
+@-webkit-keyframes marquee2 {
+  0% {
+    -webkit-transform: translate3d(100%, 0, 0);
+    transform: translate3d(100%, 0, 0);
+  }
+  100% {
+    -webkit-transform: translate3d(0, 0, 0);
     transform: translate3d(0, 0, 0);
   }
 }
