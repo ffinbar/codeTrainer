@@ -625,3 +625,51 @@ button:disabled {
   font-weight: 600;
   color: rgba(255,255,255,0.9);
 }
+
+/* Start Quiz Button */
+.start-quiz-btn {
+  display: none;
+  margin-top: 20px;
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.3);
+}
+
+.start-quiz-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(16, 185, 129, 0.4);
+}
+
+.start-quiz-btn:active {
+  transform: translateY(0);
+}
+
+.start-quiz-btn.show {
+  display: block;
+}
+
+/* Question Loading State */
+.question-loading {
+  text-align: center;
+  padding: 40px;
+  font-style: italic;
+  color: #64748b;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 12px;
+  border: 2px dashed #cbd5e1;
+}
+
+.question-loading::before {
+  content: '🔄';
+  display: block;
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  animation: spin 2s linear infinite;
+}

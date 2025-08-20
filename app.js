@@ -231,9 +231,12 @@ nextBtn.addEventListener('click', () => {
     quizArea.removeEventListener('animationend', handleAnimationEnd);
     quizArea.classList.remove('slide-out');
     current++;
-    if (current < quiz.questions.length) {
+    
+    const totalQuestions = quiz.totalQuestions || quiz.questions.length;
+    
+    if (current < totalQuestions) {
       quizArea.classList.add('slide-in');
-      renderQuestion();
+      renderQuestion(); // This will handle loading state if question isn't ready
       // Smooth scroll to top of page
       window.scrollTo({ top: 0, behavior: 'smooth' });  
       // Remove slide-in after animation completes
@@ -406,8 +409,29 @@ function showError(msg) {
 let selectedOptionText = null;
 
 function renderQuestion(fillAllBlanks = false) {
+  // Check if the current question exists
+  if (!quiz.questions[current]) {
+    // Question not loaded yet - show loading state
+    questionMeta.textContent = `Loading question ${current + 1}...`;
+    questionPrompt.textContent = 'Please wait while we generate your next question...';
+    codeContainer.innerHTML = '<div class="question-loading">Generating question...</div>';
+    optionsDiv.innerHTML = '';
+    nextBtn.classList.add('hidden');
+    setFeedback('');
+    
+    // Poll for the question to be loaded
+    const checkQuestion = setInterval(() => {
+      if (quiz.questions[current]) {
+        clearInterval(checkQuestion);
+        renderQuestion(fillAllBlanks); // Re-render when question is available
+      }
+    }, 500);
+    
+    return;
+  }
+
   const q = quiz.questions[current];
-  questionMeta.textContent = `Question ${current + 1} of ${quiz.questions.length} | Streak: ${streak} | Score: ${score}`;
+  questionMeta.textContent = `Question ${current + 1} of ${quiz.totalQuestions || quiz.questions.length} | Streak: ${streak} | Score: ${score}`;
   questionPrompt.textContent = q.prompt;
   setFeedback('');
   nextBtn.classList.remove('hidden');
@@ -527,8 +551,12 @@ function showResults() {
   resultsDiv.classList.remove('hidden');
   restartBtn.classList.remove('hidden');
   nextLvlBtn.classList.remove('hidden');
-  //Follow up is enabled if score was over 50%
-  if (score > quiz.questions.length / 2) {
+  
+  const totalQuestions = quiz.totalQuestions || quiz.questions.length;
+  const questionsAnswered = Math.min(current, quiz.questions.length);
+  
+  //Follow up is enabled if score was over 50% of answered questions
+  if (score > questionsAnswered / 2) {
     nextLvlBtn.disabled = false;
     nextLvlText.classList.add('hidden');
   } else {
@@ -540,9 +568,10 @@ function showResults() {
   
   resultsDiv.innerHTML = `
     <h2>Quiz Complete!</h2>
-    <p>Score: ${score} / ${quiz.questions.length}</p>
-    <p>Accuracy: ${Math.round((score / quiz.questions.length) * 100)}%</p>
+    <p>Score: ${score} / ${questionsAnswered}</p>
+    <p>Accuracy: ${Math.round((score / questionsAnswered) * 100)}%</p>
     <p>Max Streak: ${maxStreak}</p>
+    ${questionsAnswered < totalQuestions ? `<p><em>Note: ${totalQuestions - questionsAnswered} questions were still loading</em></p>` : ''}
   `;
   codeContainer.innerHTML = '';
   // Update high score/streak for this quiz (save first attempt as highscore if not set)
@@ -585,74 +614,154 @@ async function fetchQuiz(topic, difficulty, numQuestions, providedApiKey = null)
     const progressFill = document.querySelector('#progress-fill');
     const progressText = document.querySelector('#progress-text');
     const loadingText = document.querySelector('#loading-overlay p');
+    const startQuizBtn = document.createElement('button');
+    startQuizBtn.textContent = 'Start Quiz';
+    startQuizBtn.className = 'start-quiz-btn';
     
-    // Generate questions one by one
-    for (let i = 0; i < numQuestions; i++) {
-      if (loadingText) {
-        loadingText.textContent = `Generating question ${i + 1} of ${numQuestions}...`;
-      }
-      
-      // Update progress bar
-      const progress = ((i + 1) / numQuestions) * 100;
-      if (progressFill) progressFill.style.width = `${progress}%`;
-      if (progressText) progressText.textContent = `${Math.round(progress)}%`;
-      
-      const response = await fetch('/.netlify/functions/responses', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          topic,
-          difficulty,
-          questionIndex: i,
-          totalQuestions: numQuestions,
-          previousQuestions: questions // Send previously generated questions for context
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('Netlify function error:', response.status, errorData);
-        
-        if (response.status === 401) {
-          throw new Error('Invalid API key configuration. Please contact support.');
-        } else if (response.status === 429) {
-          throw new Error('Rate limit exceeded. Please try again later.');
-        } else if (response.status === 402) {
-          throw new Error('Service temporarily unavailable. Please try again later.');
-        } else {
-          throw new Error(errorData.error || `Server error: ${response.status}. Please try again.`);
-        }
-      }
-
-      const questionResponse = await response.json();
-      
-      if (!questionResponse.question) {
-        throw new Error('Failed to generate question. Please try again.');
-      }
-
-      // Validate question has required fields
-      const q = questionResponse.question;
-      if (!q.prompt || !q.code_snippet || !q.options || !Array.isArray(q.options) || q.options.length !== 4) {
-        throw new Error('Invalid question format - must have exactly 4 options');
-      }
-      
-      // Ensure exactly one option is marked as correct
-      const correctOptions = q.options.filter(opt => opt.isCorrect);
-      if (correctOptions.length !== 1) {
-        throw new Error(`Question ${q.id}: Must have exactly one correct option, found ${correctOptions.length}`);
-      }
-
-      questions.push(questionResponse.question);
-    }
-
-    // Create final quiz data structure
+    const loadingOverlay = document.getElementById('loading-overlay');
+    loadingOverlay.appendChild(startQuizBtn);
+    
+    let quizStarted = false;
+    let allQuestionsLoaded = false;
+    
+    // Store the quiz data globally so we can access it
     const quizData = {
       topic,
       difficulty,
-      questions
+      questions,
+      isLoading: true,
+      totalQuestions: numQuestions
     };
+    
+    // Function to start the quiz
+    const startQuiz = () => {
+      if (questions.length > 0 && !quizStarted) {
+        quizStarted = true;
+        quiz = quizData;
+        quiz.id = Date.now();
+        quiz.date = new Date().toLocaleDateString();
+        quiz.attempts = 0;
+        quiz.highScore = 0;
+        quiz.maxStreak = 0;
+        
+        // Save quiz (will update as more questions load)
+        saveQuiz(quiz);
+        
+        // Hide loading overlay and start quiz
+        document.getElementById('setup-form').classList.add('hidden');
+        document.getElementById('home-area').classList.add('hidden');
+        loadingOverlay.classList.add('hidden');
+        document.getElementById('quiz-area').classList.remove('hidden');
+        document.querySelector('h1').classList.add('hidden');
+        
+        renderQuestion();
+      }
+    };
+    
+    startQuizBtn.onclick = startQuiz;
+    
+    // Generate questions one by one
+    for (let i = 0; i < numQuestions; i++) {
+      try {
+        if (loadingText) {
+          loadingText.textContent = `Generating question ${i + 1} of ${numQuestions}...`;
+        }
+        
+        const response = await fetch('/.netlify/functions/responses', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            topic,
+            difficulty,
+            questionIndex: i,
+            totalQuestions: numQuestions,
+            previousQuestions: questions // Send previously generated questions for context
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          console.error('Netlify function error:', response.status, errorData);
+          
+          if (response.status === 401) {
+            throw new Error('Invalid API key configuration. Please contact support.');
+          } else if (response.status === 429) {
+            throw new Error('Rate limit exceeded. Please try again later.');
+          } else if (response.status === 402) {
+            throw new Error('Service temporarily unavailable. Please try again later.');
+          } else {
+            throw new Error(errorData.error || `Server error: ${response.status}. Please try again.`);
+          }
+        }
+
+        const questionResponse = await response.json();
+        
+        if (!questionResponse.question) {
+          throw new Error('Failed to generate question. Please try again.');
+        }
+
+        // Validate question has required fields
+        const q = questionResponse.question;
+        if (!q.prompt || !q.code_snippet || !q.options || !Array.isArray(q.options) || q.options.length !== 4) {
+          throw new Error('Invalid question format - must have exactly 4 options');
+        }
+        
+        // Ensure exactly one option is marked as correct
+        const correctOptions = q.options.filter(opt => opt.isCorrect);
+        if (correctOptions.length !== 1) {
+          throw new Error(`Question ${q.id}: Must have exactly one correct option, found ${correctOptions.length}`);
+        }
+
+        questions.push(questionResponse.question);
+        
+        // Update progress bar AFTER question is loaded
+        const progress = ((i + 1) / numQuestions) * 100;
+        if (progressFill) progressFill.style.width = `${progress}%`;
+        if (progressText) progressText.textContent = `${Math.round(progress)}%`;
+        
+        // Show start button after first question is loaded
+        if (i === 0 && !quizStarted) {
+          startQuizBtn.classList.add('show');
+          if (loadingText) {
+            loadingText.textContent = `Question 1 ready! Loading remaining questions...`;
+          }
+        }
+        
+        // Update saved quiz with new questions if quiz has started
+        if (quizStarted && quiz) {
+          quiz.questions = [...questions];
+          // Update the saved quiz
+          openDB().then(db => {
+            const tx = db.transaction('quizzes', 'readwrite');
+            const store = tx.objectStore('quizzes');
+            store.put(quiz);
+          });
+        }
+        
+      } catch (error) {
+        // If this is not the first question and quiz has started, continue with what we have
+        if (i > 0 && quizStarted) {
+          console.warn(`Failed to load question ${i + 1}:`, error);
+          continue;
+        } else {
+          throw error;
+        }
+      }
+    }
+    
+    allQuestionsLoaded = true;
+    quizData.isLoading = false;
+    
+    if (loadingText && !quizStarted) {
+      loadingText.textContent = `All ${numQuestions} questions ready!`;
+    }
+    
+    // If quiz hasn't started yet, auto-start it
+    if (!quizStarted) {
+      setTimeout(startQuiz, 500);
+    }
 
     return quizData;
   } catch (error) {
